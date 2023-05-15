@@ -1,0 +1,75 @@
+resource "google_compute_health_check" "default" {
+  name               = "my-health-check"
+  check_interval_sec = 5
+  timeout_sec        = 5
+  tcp_health_check {
+   port = 80 
+  }  
+}
+resource "google_compute_instance_template" "default" {
+  name        = "my-instance-template"
+  description = "My instance template"
+
+  machine_type = "n1-standard-1"
+
+  disk {
+    source_image = "debian-cloud/debian-10"
+    auto_delete  = true
+  }
+
+  network_interface {
+    network = "newvpc"
+  }
+
+  metadata_startup_script = "echo 'Hello, World!' > index.html"
+
+  tags = ["web"]
+}
+
+resource "google_compute_instance_group" "default" {
+  name        = "my-instance-group"
+  description = "My instance group"
+  zone = "us-central1-a"
+
+  instances = [
+    "${google_compute_instance_template.default.self_link}"
+  ]
+}
+
+resource "google_compute_backend_service" "default" {
+  name        = "my-backend-service"
+  description = "My backend service"
+
+  protocol = "TCP"
+
+  health_checks = [
+    "${google_compute_health_check.default.self_link}"
+  ]
+
+  backend {
+    group = "${google_compute_instance_group.default.self_link}"
+  }
+}
+
+
+resource "google_compute_forwarding_rule" "default" {
+  name        = "my-forwarding-rule"
+  description = "My forwarding rule"
+  region = var.region
+
+  load_balancing_scheme = "EXTERNAL"
+  port_range            = "80"
+
+  backend_service = "${google_compute_backend_service.default.self_link}"
+  ip_address      = "${google_compute_global_address.default.address}"
+}
+resource "google_compute_address" "default" {
+  name = "my-static-ip-address"
+  region = "us-central1"
+  address_type = "EXTERNAL"
+}
+resource "google_compute_global_address" "default" {
+  name        = "my-global-address"
+  description = "My global address"
+}
+
